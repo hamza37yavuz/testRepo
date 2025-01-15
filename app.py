@@ -5,9 +5,25 @@ from deep_translator import GoogleTranslator
 import torch
 
 # Stable Diffusion Pipeline'i yükleme
-device = "cuda" if torch.cuda.is_available() else "cpu"
-pipe = StableDiffusionPipeline.from_pretrained("CompVis/stable-diffusion-v1-4")
-pipe = pipe.to(device)  # GPU veya CPU üzerinde çalıştırma
+def load_pipeline():
+    try:
+        print("Stable Diffusion Pipeline yükleniyor...")
+        # Modeli önbelleğe kaydet ve zaman aşımı ile yükle
+        pipe = StableDiffusionPipeline.from_pretrained(
+            "CompVis/stable-diffusion-v1-4",
+            cache_dir="./cache",  # Modelleri cache'e kaydet
+            resume_download=True,  # İndirme kesilirse devam et
+            timeout=120  # Zaman aşımını artır
+        )
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        pipe = pipe.to(device)
+        print(f"Model {device.upper()} üzerinde çalıştırılıyor.")
+        return pipe
+    except Exception as e:
+        print(f"Model yükleme sırasında hata oluştu: {e}")
+        return None
+
+pipe = load_pipeline()
 
 # Çeviri fonksiyonu
 def translate_to_english(prompt):
@@ -26,17 +42,24 @@ negative_prompt = (
 )
 
 def generate_image(prompt, width, height):
+    if pipe is None:
+        return "Model yüklenemedi, lütfen tekrar deneyin.", None
+    
     if len(prompt) > 200:
         return "Prompt çok uzun! Lütfen 200 karakterden kısa bir şey girin.", None
     if width > 400 or height > 400:
         return "Boyutlar sınırı aşıyor! Maksimum boyut 400x400 olmalıdır.", None
 
-    # Türkçe promptu İngilizce'ye çevir
-    prompt = translate_to_english(prompt)
+    try:
+        # Türkçe promptu İngilizce'ye çevir
+        prompt = translate_to_english(prompt)
 
-    # Görseli üret
-    image = pipe(prompt, width=width, height=height, negative_prompt=negative_prompt).images[0]
-    return None, image
+        # Görseli üret
+        image = pipe(prompt, width=width, height=height, negative_prompt=negative_prompt).images[0]
+        return None, image
+    except Exception as e:
+        print(f"Görsel üretim sırasında hata oluştu: {e}")
+        return "Görsel üretim sırasında bir hata oluştu.", None
 
 # GPU veya CPU durumunu kontrol eden fonksiyon
 def check_device():
@@ -67,4 +90,4 @@ with gr.Blocks() as demo:
         outputs=[output_text, output_image]
     )
 
-demo.launch()
+demo.launch(server_name="0.0.0.0", server_port=7860)
