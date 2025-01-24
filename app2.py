@@ -2,15 +2,16 @@ import gradio as gr
 from diffusers import FluxPipeline
 from deep_translator import GoogleTranslator
 import torch
+import sys
 
 # FLUX Pipeline yükleme
-
-def load_flux_pipeline():
+def load_flux_pipeline(token):
     try:
         print("FLUX Pipeline yükleniyor...")
         pipe = FluxPipeline.from_pretrained(
             "black-forest-labs/FLUX.1-dev",
-            torch_dtype=torch.bfloat16
+            torch_dtype=torch.bfloat16,
+            use_auth_token=token
         )
         pipe.enable_model_cpu_offload()
         print("Model başarıyla yüklendi.")
@@ -19,7 +20,13 @@ def load_flux_pipeline():
         print(f"Model yükleme sırasında hata oluştu: {e}")
         return None
 
-pipe = load_flux_pipeline()
+# Komut satırından token alma
+if len(sys.argv) < 2:
+    print("Lütfen bir Hugging Face tokenı girin: python app.py <HF_TOKEN>")
+    sys.exit(1)
+
+hf_token = sys.argv[1]
+pipe = load_flux_pipeline(hf_token)
 
 # Çeviri fonksiyonu
 def translate_to_english(prompt):
