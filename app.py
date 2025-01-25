@@ -69,12 +69,17 @@ def check_device():
         return "GPU kullanılmıyor, CPU üzerinde çalışıyor."
 
 # Gradio arayüzü
-with gr.Blocks(css="body {background-color: #f0f8ff;} .footer {text-align: center; margin-top: 20px;}") as demo:
-    gr.Markdown("""<h1 style='text-align: center;'>Stable Diffusion Çocuklara Özel Görsel Üretimi</h1>""")
+with gr.Blocks(css="""
+    body {background-color: #f0f8ff;}
+    #logo-container {display: flex; align-items: center; padding: 10px;}
+    #logo {max-height: 50px;}
+    .footer {text-align: center; margin-top: 20px;}
+""") as demo:
+    # Logo sol üstte
+    with gr.Row(elem_id="logo-container"):
+        gr.Image("logo.ico", elem_id="logo", interactive=False, show_label=False)
 
-    # Logo Ekleme
-    with gr.Row():
-        gr.Image("logo.ico", elem_id="logo", interactive=False, label="")
+    gr.Markdown("""<h1 style='text-align: center;'>Stable Diffusion Çocuklara Özel Görsel Üretimi</h1>""")
 
     with gr.Row():
         prompt = gr.Textbox(label="Prompt (Türkçe)", placeholder="Bir şey yazın (max 200 karakter)")
