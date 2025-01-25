@@ -69,9 +69,13 @@ def check_device():
         return "GPU kullanılmıyor, CPU üzerinde çalışıyor."
 
 # Gradio arayüzü
-with gr.Blocks() as demo:
-    gr.Markdown("### Stable Diffusion Çocuklara Özel Görsel Üretimi")
-    
+with gr.Blocks(css="body {background-color: #f0f8ff;} .footer {text-align: center; margin-top: 20px;}") as demo:
+    gr.Markdown("""<h1 style='text-align: center;'>Stable Diffusion Çocuklara Özel Görsel Üretimi</h1>""")
+
+    # Logo Ekleme
+    with gr.Row():
+        gr.Image("logo.ico", elem_id="logo", interactive=False, label="")
+
     with gr.Row():
         prompt = gr.Textbox(label="Prompt (Türkçe)", placeholder="Bir şey yazın (max 200 karakter)")
         width = gr.Slider(label="Genişlik", minimum=100, maximum=400, step=50, value=400)
@@ -90,4 +94,9 @@ with gr.Blocks() as demo:
         outputs=[output_text, output_image]
     )
 
+    # Footer için bir Markdown ekleme
+    with gr.Row(elem_id="footer"):
+        gr.Markdown("<p>Bu uygulama <b>Gradio</b> kullanılarak oluşturulmuştur.</p>")
+
+# Uygulama başlatma
 demo.launch(server_name="0.0.0.0", server_port=7860)
