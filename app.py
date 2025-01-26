@@ -71,7 +71,7 @@ def check_device():
 
 # Gradio arayüzü
 with gr.Blocks(css="body { background-color: #f0f8ff; font-family: Arial, sans-serif; } .gr-button { background-color: #ff7f50; color: white; border: none; }") as demo:
-    gr.Markdown("### 🌈 Stable Diffusion Görsel Üretim Aracı")
+    gr.Markdown("### Stable Diffusion Görsel Üretim Aracı")
 
     with gr.Row():
         prompt = gr.Textbox(label="Prompt (Türkçe)", placeholder="Bir şey yazın (max 200 karakter)")
