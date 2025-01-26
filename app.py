@@ -1,20 +1,19 @@
 import gradio as gr
-from google.cloud import translate_v2 as translate
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 from diffusers import StableDiffusionPipeline
+from deep_translator import GoogleTranslator
 import torch
-
-# Google Translate API istemcisi
-translate_client = translate.Client()
 
 # Stable Diffusion Pipeline'i yükleme
 def load_pipeline():
     try:
         print("Stable Diffusion Pipeline yükleniyor...")
+        # Modeli önbelleğe kaydet ve zaman aşımı ile yükle
         pipe = StableDiffusionPipeline.from_pretrained(
             "CompVis/stable-diffusion-v1-4",
-            cache_dir="./cache",
-            resume_download=True,
-            timeout=120
+            cache_dir="./cache",  # Modelleri cache'e kaydet
+            resume_download=True,  # İndirme kesilirse devam et
+            timeout=120  # Zaman aşımını artır
         )
         device = "cuda" if torch.cuda.is_available() else "cpu"
         pipe = pipe.to(device)
@@ -26,13 +25,14 @@ def load_pipeline():
 
 pipe = load_pipeline()
 
-# Çeviri fonksiyonu (Google Translate API)
-def translate_to_english_google_api(prompt):
+# Çeviri fonksiyonu
+def translate_to_english(prompt):
     try:
-        result = translate_client.translate(prompt, source_language="tr", target_language="en")
-        return result["translatedText"]
+        # Türkçe prompt'u İngilizce'ye çevir
+        translated_text = GoogleTranslator(source="turkish", target="english").translate(prompt)
+        return translated_text
     except Exception as e:
-        print(f"Çeviri sırasında hata oluştu: {e}")
+        print(f"Çeviri sırasında hata: {e}")
         return prompt
 
 # Görsel üretim fonksiyonu
@@ -41,19 +41,18 @@ negative_prompt = (
     "blood, weapon, nudity"
 )
 
-def generate_image(prompt, width, height, translate_prompt):
+def generate_image(prompt, width, height):
     if pipe is None:
         return "Model yüklenemedi, lütfen tekrar deneyin.", None
-
+    
     if len(prompt) > 200:
         return "Prompt çok uzun! Lütfen 200 karakterden kısa bir şey girin.", None
     if width > 400 or height > 400:
         return "Boyutlar sınırı aşıyor! Maksimum boyut 400x400 olmalıdır.", None
 
     try:
-        # Prompt çevirme seçeneği
-        if translate_prompt:
-            prompt = translate_to_english_google_api(prompt)
+        # Türkçe promptu İngilizce'ye çevir
+        prompt = translate_to_english(prompt)
 
         # Görseli üret
         image = pipe(prompt, width=width, height=height, negative_prompt=negative_prompt).images[0]
@@ -70,16 +69,15 @@ def check_device():
         return "GPU kullanılmıyor, CPU üzerinde çalışıyor."
 
 # Gradio arayüzü
-with gr.Blocks(css="body {background: linear-gradient(135deg, #ff7eb3, #ff758c, #ffd5cd);}") as demo:
-    gr.Markdown("### 🎨 Stable Diffusion: Yapay Zeka Eğitim Görsel Üretimi")
-
+with gr.Blocks() as demo:
+    gr.Markdown("### Stable Diffusion Çocuklara Özel Görsel Üretimi")
+    
     with gr.Row():
         prompt = gr.Textbox(label="Prompt (Türkçe)", placeholder="Bir şey yazın (max 200 karakter)")
         width = gr.Slider(label="Genişlik", minimum=100, maximum=400, step=50, value=400)
         height = gr.Slider(label="Yükseklik", minimum=100, maximum=400, step=50, value=400)
 
     with gr.Row():
-        translate_prompt = gr.Checkbox(label="İngilizce'ye çevir (Google Translate API)", value=True)
         device_status = gr.Textbox(label="Cihaz Durumu", value=check_device(), interactive=False)
 
     output_text = gr.Textbox(label="Hata Mesajı")
@@ -88,7 +86,7 @@ with gr.Blocks(css="body {background: linear-gradient(135deg, #ff7eb3, #ff758c, 
     generate_button = gr.Button("Görsel Üret")
     generate_button.click(
         fn=generate_image,
-        inputs=[prompt, width, height, translate_prompt],
+        inputs=[prompt, width, height],
         outputs=[output_text, output_image]
     )
 
