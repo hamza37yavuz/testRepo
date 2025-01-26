@@ -7,3 +7,4 @@ accelerate
 gradio>=3.10.0
 sentencepiece
 deep-translator
+google-cloud-translate
