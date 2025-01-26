@@ -41,7 +41,7 @@ negative_prompt = (
     "blood, weapon, nudity"
 )
 
-def generate_image(prompt, width, height):
+def generate_image(prompt, width, height, translate):
     if pipe is None:
         return "Model yüklenemedi, lütfen tekrar deneyin.", None
     
@@ -51,8 +51,9 @@ def generate_image(prompt, width, height):
         return "Boyutlar sınırı aşıyor! Maksimum boyut 400x400 olmalıdır.", None
 
     try:
-        # Türkçe promptu İngilizce'ye çevir
-        prompt = translate_to_english(prompt)
+        # Çeviri tercihi kontrolü
+        if translate:
+            prompt = translate_to_english(prompt)
 
         # Görseli üret
         image = pipe(prompt, width=width, height=height, negative_prompt=negative_prompt).images[0]
@@ -69,13 +70,16 @@ def check_device():
         return "GPU kullanılmıyor, CPU üzerinde çalışıyor."
 
 # Gradio arayüzü
-with gr.Blocks() as demo:
-    gr.Markdown("### Stable Diffusion Çocuklara Özel Görsel Üretimi")
-    
+with gr.Blocks(css="body { background-color: #f0f8ff; font-family: Arial, sans-serif; } .gr-button { background-color: #ff7f50; color: white; border: none; }") as demo:
+    gr.Markdown("### 🌈 Stable Diffusion Görsel Üretim Aracı")
+
     with gr.Row():
         prompt = gr.Textbox(label="Prompt (Türkçe)", placeholder="Bir şey yazın (max 200 karakter)")
         width = gr.Slider(label="Genişlik", minimum=100, maximum=400, step=50, value=400)
         height = gr.Slider(label="Yükseklik", minimum=100, maximum=400, step=50, value=400)
+
+    with gr.Row():
+        translate = gr.Checkbox(label="Türkçe'den İngilizce'ye çevir", value=True)
 
     with gr.Row():
         device_status = gr.Textbox(label="Cihaz Durumu", value=check_device(), interactive=False)
@@ -86,7 +90,7 @@ with gr.Blocks() as demo:
     generate_button = gr.Button("Görsel Üret")
     generate_button.click(
         fn=generate_image,
-        inputs=[prompt, width, height],
+        inputs=[prompt, width, height, translate],
         outputs=[output_text, output_image]
     )
 
