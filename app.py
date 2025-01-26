@@ -4,94 +4,91 @@ from diffusers import StableDiffusionPipeline
 from deep_translator import GoogleTranslator
 import torch
 
-# Stable Diffusion Pipeline'i yükleme
-def load_pipeline():
-    try:
-        print("Stable Diffusion Pipeline yükleniyor...")
-        # Modeli önbelleğe kaydet ve zaman aşımı ile yükle
-        pipe = StableDiffusionPipeline.from_pretrained(
-            "CompVis/stable-diffusion-v1-4",
-            cache_dir="./cache",  # Modelleri cache'e kaydet
-            resume_download=True,  # İndirme kesilirse devam et
-            timeout=120  # Zaman aşımını artır
+class StableDiffusionApp:
+    def __init__(self):
+        self.pipe = self.load_pipeline()
+        self.negative_prompt = (
+            "violence, explicit content, gore, inappropriate for children, "
+            "blood, weapon, nudity"
         )
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        pipe = pipe.to(device)
-        print(f"Model {device.upper()} üzerinde çalıştırılıyor.")
-        return pipe
-    except Exception as e:
-        print(f"Model yükleme sırasında hata oluştu: {e}")
-        return None
 
-pipe = load_pipeline()
+    def load_pipeline(self):
+        try:
+            print("Stable Diffusion Pipeline yükleniyor...")
+            pipe = StableDiffusionPipeline.from_pretrained(
+                "CompVis/stable-diffusion-v1-4",
+                cache_dir="./cache",
+                resume_download=True,
+                timeout=120
+            )
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            pipe = pipe.to(device)
+            print(f"Model {device.upper()} üzerinde çalıştırılıyor.")
+            return pipe
+        except Exception as e:
+            print(f"Model yükleme sırasında hata oluştu: {e}")
+            return None
 
-# Çeviri fonksiyonu
-def translate_to_english(prompt):
-    try:
-        # Türkçe prompt'u İngilizce'ye çevir
-        translated_text = GoogleTranslator(source="turkish", target="english").translate(prompt)
-        return translated_text
-    except Exception as e:
-        print(f"Çeviri sırasında hata: {e}")
-        return prompt
+    def translate_to_english(self, prompt):
+        try:
+            translated_text = GoogleTranslator(source="turkish", target="english").translate(prompt)
+            return translated_text
+        except Exception as e:
+            print(f"Çeviri sırasında hata: {e}")
+            return prompt
 
-# Görsel üretim fonksiyonu
-negative_prompt = (
-    "violence, explicit content, gore, inappropriate for children, "
-    "blood, weapon, nudity"
-)
+    def generate_image(self, prompt, width, height, translate):
+        if self.pipe is None:
+            return "Model yüklenemedi, lütfen tekrar deneyin.", None
 
-def generate_image(prompt, width, height, translate):
-    if pipe is None:
-        return "Model yüklenemedi, lütfen tekrar deneyin.", None
-    
-    if len(prompt) > 200:
-        return "Prompt çok uzun! Lütfen 200 karakterden kısa bir şey girin.", None
-    if width > 400 or height > 400:
-        return "Boyutlar sınırı aşıyor! Maksimum boyut 400x400 olmalıdır.", None
+        if len(prompt) > 200:
+            return "Prompt çok uzun! Lütfen 200 karakterden kısa bir şey girin.", None
+        if width > 400 or height > 400:
+            return "Boyutlar sınırı aşıyor! Maksimum boyut 400x400 olmalıdır.", None
 
-    try:
-        # Çeviri tercihi kontrolü
-        if translate:
-            prompt = translate_to_english(prompt)
+        try:
+            if translate:
+                prompt = self.translate_to_english(prompt)
 
-        # Görseli üret
-        image = pipe(prompt, width=width, height=height, negative_prompt=negative_prompt).images[0]
-        return None, image
-    except Exception as e:
-        print(f"Görsel üretim sırasında hata oluştu: {e}")
-        return "Görsel üretim sırasında bir hata oluştu.", None
+            image = self.pipe(prompt, width=width, height=height, negative_prompt=self.negative_prompt).images[0]
+            return None, image
+        except Exception as e:
+            print(f"Görsel üretim sırasında hata oluştu: {e}")
+            return "Görsel üretim sırasında bir hata oluştu.", None
 
-# GPU veya CPU durumunu kontrol eden fonksiyon
-def check_device():
-    if torch.cuda.is_available():
-        return "GPU kullanılıyor."
-    else:
-        return "GPU kullanılmıyor, CPU üzerinde çalışıyor."
+    def check_device(self):
+        if torch.cuda.is_available():
+            return "GPU kullanılıyor."
+        else:
+            return "GPU kullanılmıyor, CPU üzerinde çalışıyor."
 
-# Gradio arayüzü
-with gr.Blocks(css="body { background-color: #f0f8ff; font-family: Arial, sans-serif; } .gr-button { background-color: #ff7f50; color: white; border: none; }") as demo:
-    gr.Markdown("### Stable Diffusion Görsel Üretim Aracı")
+    def launch_app(self):
+        with gr.Blocks(css="body { background-color: #f0f8ff; font-family: Arial, sans-serif; } .gr-button { background-color: #ff7f50; color: white; border: none; }") as demo:
+            gr.Markdown("### 🌈 Stable Diffusion Görsel Üretim Aracı")
 
-    with gr.Row():
-        prompt = gr.Textbox(label="Prompt (Türkçe)", placeholder="Bir şey yazın (max 200 karakter)")
-        width = gr.Slider(label="Genişlik", minimum=100, maximum=400, step=50, value=400)
-        height = gr.Slider(label="Yükseklik", minimum=100, maximum=400, step=50, value=400)
+            with gr.Row():
+                prompt = gr.Textbox(label="Prompt (Türkçe)", placeholder="Bir şey yazın (max 200 karakter)")
+                width = gr.Slider(label="Genişlik", minimum=100, maximum=400, step=50, value=400)
+                height = gr.Slider(label="Yükseklik", minimum=100, maximum=400, step=50, value=400)
 
-    with gr.Row():
-        translate = gr.Checkbox(label="Türkçe'den İngilizce'ye çevir", value=True)
+            with gr.Row():
+                translate = gr.Checkbox(label="Türkçe'den İngilizce'ye çevir", value=True)
 
-    with gr.Row():
-        device_status = gr.Textbox(label="Cihaz Durumu", value=check_device(), interactive=False)
+            with gr.Row():
+                device_status = gr.Textbox(label="Cihaz Durumu", value=self.check_device(), interactive=False)
 
-    output_text = gr.Textbox(label="Hata Mesajı")
-    output_image = gr.Image(label="Üretilen Görsel")
+            output_text = gr.Textbox(label="Hata Mesajı")
+            output_image = gr.Image(label="Üretilen Görsel")
 
-    generate_button = gr.Button("Görsel Üret")
-    generate_button.click(
-        fn=generate_image,
-        inputs=[prompt, width, height, translate],
-        outputs=[output_text, output_image]
-    )
+            generate_button = gr.Button("Görsel Üret")
+            generate_button.click(
+                fn=self.generate_image,
+                inputs=[prompt, width, height, translate],
+                outputs=[output_text, output_image]
+            )
 
-demo.launch(server_name="0.0.0.0", server_port=7860)
+        demo.launch(server_name="0.0.0.0", server_port=7860)
+
+if __name__ == "__main__":
+    app = StableDiffusionApp()
+    app.launch_app()
