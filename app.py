@@ -36,20 +36,18 @@ class StableDiffusionApp:
             print(f"Çeviri sırasında hata: {e}")
             return prompt
 
-    def generate_image(self, prompt, width, height, translate):
+    def generate_image(self, prompt, translate):
         if self.pipe is None:
             return "Model yüklenemedi, lütfen tekrar deneyin.", None
 
         if len(prompt) > 200:
             return "Prompt çok uzun! Lütfen 200 karakterden kısa bir şey girin.", None
-        if width > 768 or height > 768:
-            return "Boyutlar sınırı aşıyor! Maksimum boyut 768x768 olmalıdır.", None
 
         try:
             if translate:
                 prompt = self.translate_to_english(prompt)
 
-            image = self.pipe(prompt, width=width, height=height, negative_prompt=self.negative_prompt).images[0]
+            image = self.pipe(prompt, width=512, height=512, negative_prompt=self.negative_prompt).images[0]
             return None, image
         except Exception as e:
             print(f"Görsel üretim sırasında hata oluştu: {e}")
@@ -67,10 +65,6 @@ class StableDiffusionApp:
 
             with gr.Row():
                 prompt = gr.Textbox(label="Prompt (Türkçe)", placeholder="Bir şey yazın (max 200 karakter)")
-                width = gr.Slider(label="Genişlik", minimum=100, maximum=768, step=64, value=512)
-                height = gr.Slider(label="Yükseklik", minimum=100, maximum=768, step=64, value=512)
-
-            with gr.Row():
                 translate = gr.Checkbox(label="Türkçe'den İngilizce'ye çevir", value=True)
 
             with gr.Row():
@@ -82,7 +76,7 @@ class StableDiffusionApp:
             generate_button = gr.Button("Görsel Üret")
             generate_button.click(
                 fn=self.generate_image,
-                inputs=[prompt, width, height, translate],
+                inputs=[prompt, translate],
                 outputs=[output_text, output_image]
             )
 
