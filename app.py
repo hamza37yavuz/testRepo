@@ -1,6 +1,6 @@
 import gradio as gr
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
-from diffusers import StableDiffusionPipeline
+from diffusers import StableDiffusion3Pipeline
 from deep_translator import GoogleTranslator
 import torch
 
@@ -14,12 +14,10 @@ class StableDiffusionApp:
 
     def load_pipeline(self):
         try:
-            print("Stable Diffusion Pipeline yükleniyor...")
-            pipe = StableDiffusionPipeline.from_pretrained(
-                "CompVis/stable-diffusion-v1-4",
-                cache_dir="./cache",
-                resume_download=True,
-                timeout=120
+            print("Stable Diffusion 3.5 Large modeli yükleniyor...")
+            pipe = StableDiffusion3Pipeline.from_pretrained(
+                "stabilityai/stable-diffusion-3.5-large",
+                torch_dtype=torch.bfloat16
             )
             device = "cuda" if torch.cuda.is_available() else "cpu"
             pipe = pipe.to(device)
