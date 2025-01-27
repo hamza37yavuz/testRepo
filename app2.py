@@ -1,6 +1,8 @@
 import gradio as gr
 from diffusers import DiffusionPipeline
 import torch
+from huggingface_hub import login
+import sys
 
 class FluxImageGenerator:
     def __init__(self, model_id="black-forest-labs/FLUX.1-dev", device="cuda"):
@@ -43,7 +45,7 @@ class FluxImageGenerator:
             PIL.Image: Oluşturulan görsel.
         """
         if self.pipe is None:
-            raise gr.Error("Lütfen önce Hugging Face token'ınızı girin ve modeli yükleyin!")
+            raise gr.Error("Lütfen önce modeli yükleyin!")
         
         print(f"Görsel oluşturuluyor: {prompt}")
         with torch.autocast(self.device):
@@ -51,24 +53,13 @@ class FluxImageGenerator:
         print("Görsel başarıyla oluşturuldu!")
         return image
 
-def create_gradio_interface():
+def create_gradio_interface(generator):
     """
     Gradio arayüzünü oluşturur.
     
     Returns:
         gr.Blocks: Gradio arayüzü.
     """
-    generator = FluxImageGenerator(device="cuda")  # GPU kullanıyorsanız, "cpu" yerine "cuda" yazın
-
-    def load_model_wrapper(token):
-        """
-        Modeli yüklemek için wrapper fonksiyonu.
-        """
-        try:
-            generator._load_model(token)
-            return "Model başarıyla yüklendi!"
-        except Exception as e:
-            return f"Hata: {str(e)}"
 
     def generate_image_wrapper(prompt, negative_prompt):
         # Prompt'un 300 karakteri aşmasını engelle
@@ -88,19 +79,7 @@ def create_gradio_interface():
         gr.Markdown("# 🎨 FLUX.1-dev ile Eğlenceli Görsel Oluşturma 🎨")
         gr.Markdown("### Çocuklar için renkli ve eğlenceli görseller oluşturun!")
         
-        # Token girişi için bir alan ekleyin
-        with gr.Row():
-            token_input = gr.Textbox(
-                label="Hugging Face Token",
-                placeholder="hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-                type="password",  # Token'ı gizli tut
-                info="Hugging Face hesabınızın token'ını girin.",
-            )
-            load_model_button = gr.Button("Modeli Yükle", variant="secondary")
-        
-        load_model_output = gr.Textbox(label="Model Yükleme Durumu", interactive=False)
-        
-        # Model yüklendikten sonra görsel oluşturma alanı
+        # Görsel oluşturma alanı
         with gr.Row():
             with gr.Column():
                 prompt = gr.Textbox(
@@ -120,11 +99,6 @@ def create_gradio_interface():
                 output_image = gr.Image(label="Oluşturulan Görsel", interactive=False)
 
         # Buton işlevleri
-        load_model_button.click(
-            load_model_wrapper,
-            inputs=token_input,
-            outputs=load_model_output,
-        )
         generate_button.click(
             generate_image_wrapper,
             inputs=[prompt, negative_prompt],
@@ -145,10 +119,22 @@ def create_gradio_interface():
     return demo
 
 def main():
-    # Gradio arayüzünü oluştur
-    demo = create_gradio_interface()
+    # Komut satırından token alın
+    if len(sys.argv) != 2:
+        print("Kullanım: python app2.py <HuggingFace_Token>")
+        sys.exit(1)
 
-    # Arayüzü dışarıdan erişilebilir şekilde başlat
+    HUGGINGFACE_TOKEN = sys.argv[1]
+
+    # Hugging Face hesabına giriş yap
+    login(token=HUGGINGFACE_TOKEN)
+
+    # Modeli yükleyin
+    generator = FluxImageGenerator(device="cuda")
+    generator._load_model(HUGGINGFACE_TOKEN)
+
+    # Gradio arayüzünü oluştur ve başlat
+    demo = create_gradio_interface(generator)
     demo.launch(server_name="0.0.0.0", server_port=7860)
 
 if __name__ == "__main__":
