@@ -33,23 +33,23 @@ class FluxImageGenerator:
         self.pipe = self.pipe.to(self.device)
         print("Model başarıyla yüklendi!")
 
-    def generate_image(self, prompt, negative_prompt=""):
+    def generate_image(self, prompt):
         """
         Metin girdisine dayalı olarak görsel oluşturur.
         
         Args:
             prompt (str): İstenen görseli tanımlayan metin.
-            negative_prompt (str): İstenmeyen öğeleri tanımlayan metin.
         
         Returns:
             PIL.Image: Oluşturulan görsel.
         """
+        negative_prompt = "şiddet, korku, çıplaklık"  # Sabit negatif prompt
         if self.pipe is None:
             raise gr.Error("Lütfen önce modeli yükleyin!")
         
         print(f"Görsel oluşturuluyor: {prompt}")
         with torch.autocast(self.device):
-            image = self.pipe(prompt, negative_prompt=negative_prompt).images[0]
+            image = self.pipe(prompt, negative_prompt=negative_prompt, height=512, width=512).images[0]
         print("Görsel başarıyla oluşturuldu!")
         return image
 
@@ -61,11 +61,11 @@ def create_gradio_interface(generator):
         gr.Blocks: Gradio arayüzü.
     """
 
-    def generate_image_wrapper(prompt, negative_prompt):
+    def generate_image_wrapper(prompt):
         # Prompt'un 300 karakteri aşmasını engelle
         if len(prompt) > 300:
             raise gr.Error("Prompt 300 karakteri geçemez! Lütfen daha kısa bir metin girin.")
-        return generator.generate_image(prompt, negative_prompt)
+        return generator.generate_image(prompt)
 
     # Renkli ve çocuk dostu tema
     custom_theme = gr.themes.Default(
@@ -89,11 +89,6 @@ def create_gradio_interface(generator):
                     max_length=300,  # Maksimum 300 karakter
                     info="Lütfen 300 karakteri geçmeyen bir metin girin.",  # Bilgilendirme mesajı
                 )
-                negative_prompt = gr.Textbox(
-                    label="Negatif Prompt (İstenmeyen Öğeler)",
-                    placeholder="Örneğin: şiddet, korku, çıplaklık",
-                    max_lines=2,  # Metin kutusunun boyutunu sınırla
-                )
                 generate_button = gr.Button("Görsel Oluştur", variant="primary")
             with gr.Column():
                 output_image = gr.Image(label="Oluşturulan Görsel", interactive=False)
@@ -101,18 +96,18 @@ def create_gradio_interface(generator):
         # Buton işlevleri
         generate_button.click(
             generate_image_wrapper,
-            inputs=[prompt, negative_prompt],
+            inputs=[prompt],
             outputs=output_image,
         )
 
         gr.Markdown("### Örnek Promptlar:")
         gr.Examples(
             examples=[
-                ["Mutlu bir çocuk, yeşil bir ormanda, güneş ışığı altında, renkli kelebeklerle çevrili", "şiddet, korku"],
-                ["Renkli balonlarla dolu bir parti, mutlu çocuklar, pastel renkler", "karanlık, üzüntü"],
-                ["Bir uzay gemisi, yıldızlar, gezegenler, renkli ışıklar", "şiddet, korku"],
+                ["Mutlu bir çocuk, yeşil bir ormanda, güneş ışığı altında, renkli kelebeklerle çevrili"],
+                ["Renkli balonlarla dolu bir parti, mutlu çocuklar, pastel renkler"],
+                ["Bir uzay gemisi, yıldızlar, gezegenler, renkli ışıklar"],
             ],
-            inputs=[prompt, negative_prompt],
+            inputs=[prompt],
             label="Örnekler"
         )
 
