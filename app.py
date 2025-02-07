@@ -1,87 +1,166 @@
 import gradio as gr
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
-from diffusers import StableDiffusionPipeline
-from deep_translator import GoogleTranslator
+from diffusers import DiffusionPipeline
 import torch
+from huggingface_hub import login
+import sys
+from googletrans import Translator  # Prompt çevirisi için
 
-class StableDiffusionApp:
-    def __init__(self):
-        self.pipe = self.load_pipeline()
-        self.negative_prompt = (
-            "violence, explicit content, gore, inappropriate for children, "
-            "blood, weapon, nudity"
+class StableDif: 
+    def __init__(self, model_id="stabilityai/stable-diffusion-3-large", devices=None, image_size=128):
+        """
+        Stable Diffusion 3.5 Large modelini yükler ve ayarlar.
+        
+        Args:
+            model_id (str): Hugging Face model kimliği.
+            devices (list): Kullanılacak GPU'ların listesi (ör. ["cuda:0", "cuda:1"]).
+            image_size (int): Görsel boyutu (128, 256 veya 512).
+        """
+        self.model_id = model_id
+        self.devices = devices or ["cuda:0"]  # Varsayılan olarak tek GPU
+        self.image_size = image_size if image_size in [128, 256, 512] else 128  # Varsayılan 128
+        self.pipe = None  # Model başlangıçta yüklenmemiş olacak
+
+    def _load_model(self, token):
+        """
+        Modeli yükler ve belirtilen GPU'lara dağıtır.
+        
+        Args:
+            token (str): Hugging Face token'ı.
+        """
+        try:
+            print(f"[DEBUG] Model yükleniyor: {self.model_id}")
+            self.pipe = DiffusionPipeline.from_pretrained(
+                self.model_id,
+                torch_dtype=torch.float16,
+                use_auth_token=token  # Token'ı kullanarak modeli yükle
+            )
+            
+            # Çoklu GPU kullanımı (DataParallel)
+            if len(self.devices) > 1:
+                print(f"[DEBUG] {len(self.devices)} GPU kullanılıyor: {', '.join(self.devices)}")
+                self.pipe.enable_model_cpu_offload()  # Bellek optimizasyonu için
+            else:
+                print(f"[DEBUG] Tek GPU kullanılıyor: {self.devices[0]}")
+                self.pipe = self.pipe.to(self.devices[0])
+            
+            self.pipe = torch.nn.DataParallel(self.pipe, device_ids=[torch.device(device) for device in self.devices])
+            print("[DEBUG] Model başarıyla yüklendi!")
+        except Exception as e:
+            print(f"[ERROR] Model yükleme başarısız oldu: {e}")
+            raise RuntimeError(f"Model yüklenemedi: {e}")
+
+    def generate_image(self, prompt, translate_prompt=False):
+        """
+        Metin girdisine dayalı olarak görsel oluşturur.
+        
+        Args:
+            prompt (str): İstenen görseli tanımlayan metin.
+            translate_prompt (bool): Prompt'u İngilizceye çevir.
+        
+        Returns:
+            PIL.Image: Oluşturulan görsel.
+        """
+        negative_prompt = (
+            "violence, gore, nudity, explicit content, blood, horror, weapons, "
+            "disturbing imagery, adult content, offensive material"
         )
 
-    def load_pipeline(self):
-        try:
-            print("Stable Diffusion Pipeline yükleniyor...")
-            pipe = StableDiffusionPipeline.from_pretrained(
-                "stabilityai/stable-diffusion-2-1",
-                cache_dir="./cache",
-                torch_dtype=torch.float16
-            )
-            device = "cuda" if torch.cuda.is_available() else "cpu"
-            pipe = pipe.to(device)
-            print(f"Model {device.upper()} üzerinde çalıştırılıyor.")
-            return pipe
-        except Exception as e:
-            print(f"Model yükleme sırasında hata oluştu: {e}")
-            return None
-
-    def translate_to_english(self, prompt):
-        try:
-            translated_text = GoogleTranslator(source="turkish", target="english").translate(prompt)
-            return translated_text
-        except Exception as e:
-            print(f"Çeviri sırasında hata: {e}")
-            return prompt
-
-    def generate_image(self, prompt, translate):
         if self.pipe is None:
-            return "Model yüklenemedi, lütfen tekrar deneyin.", None
-
-        if len(prompt) > 200:
-            return "Prompt çok uzun! Lütfen 200 karakterden kısa bir şey girin.", None
+            raise gr.Error("[ERROR] Model yüklenmeden görsel oluşturulamaz!")
 
         try:
-            if translate:
-                prompt = self.translate_to_english(prompt)
+            if translate_prompt:
+                translator = Translator()
+                prompt = translator.translate(prompt, dest="en").text
+                print(f"[DEBUG] Çevrilen Prompt: {prompt}")
 
-            image = self.pipe(prompt, width=512, height=512, negative_prompt=self.negative_prompt).images[0]
-            return None, image
+            print(f"[DEBUG] Görsel oluşturuluyor: {prompt}")
+            with torch.autocast(self.devices[0]):
+                image = self.pipe(
+                    prompt,
+                    negative_prompt=negative_prompt,
+                    height=self.image_size,
+                    width=self.image_size
+                ).images[0]
+            print("[DEBUG] Görsel başarıyla oluşturuldu!")
+            return image
         except Exception as e:
-            print(f"Görsel üretim sırasında hata oluştu: {e}")
-            return "Görsel üretim sırasında bir hata oluştu.", None
+            print(f"[ERROR] Görsel oluşturulurken hata oluştu: {e}")
+            raise RuntimeError(f"Görsel oluşturulamadı: {e}")
 
-    def check_device(self):
-        if torch.cuda.is_available():
-            return "GPU kullanılıyor."
-        else:
-            return "GPU kullanılmıyor, CPU üzerinde çalışıyor."
+def create_gradio_interface(generator):
+    """
+    Gradio arayüzünü oluşturur.
+    
+    Returns:
+        gr.Blocks: Gradio arayüzü.
+    """
+    def generate_image_wrapper(prompt, translate_prompt):
+        return generator.generate_image(prompt, translate_prompt)
 
-    def launch_app(self):
-        with gr.Blocks(css="body { background-color: #f0f8ff; font-family: Arial, sans-serif; } .gr-button { background-color: #ff7f50; color: white; border: none; }") as demo:
-            gr.Markdown("### Stable Diffusion Görsel Üretim Aracı")
+    custom_css = """
+    .gradio-container {
+        background: linear-gradient(45deg, #ff9a9e, #fad0c4, #fbc2eb, #a18cd1, #fad0c4, #ffdde1);
+    }
+    """
 
+    try:
+        with gr.Blocks(css=custom_css) as demo:
+            gr.Markdown("# 🎨 Stable Diffusion 3.5 Large ile Görsel Oluşturma 🎨")
+            gr.Markdown("### Renkli ve eğlenceli görseller oluşturun!")
+            
             with gr.Row():
-                prompt = gr.Textbox(label="Prompt (Türkçe)", placeholder="Bir şey yazın (max 200 karakter)")
-                translate = gr.Checkbox(label="Türkçe'den İngilizce'ye çevir", value=True)
+                with gr.Column():
+                    prompt = gr.Textbox(
+                        label="Prompt (İstenen Görsel)",
+                        placeholder="Örneğin: Mutlu bir çocuk, renkli balonlarla",
+                        max_lines=3,
+                        info="Lütfen istediğiniz görseli tanımlayan bir metin girin."
+                    )
+                    translate_prompt = gr.Checkbox(
+                        label="Prompt'u İngilizceye Çevir",
+                        value=False,
+                        info="İşaretli değilse, prompt otomatik olarak İngilizceye çevrilir."
+                    )
+                    generate_button = gr.Button("Görsel Oluştur", variant="primary")
+                with gr.Column():
+                    output_image = gr.Image(label="Oluşturulan Görsel", interactive=False)
 
-            with gr.Row():
-                device_status = gr.Textbox(label="Cihaz Durumu", value=self.check_device(), interactive=False)
-
-            output_text = gr.Textbox(label="Hata Mesajı")
-            output_image = gr.Image(label="Üretilen Görsel")
-
-            generate_button = gr.Button("Görsel Üret")
             generate_button.click(
-                fn=self.generate_image,
-                inputs=[prompt, translate],
-                outputs=[output_text, output_image]
+                generate_image_wrapper,
+                inputs=[prompt, translate_prompt],
+                outputs=output_image,
             )
+        return demo
+    except Exception as e:
+        print(f"[ERROR] Gradio arayüzü oluşturulamadı: {e}")
+        raise RuntimeError(f"Gradio arayüzü başlatılamadı: {e}")
+      
+def main():
+    if len(sys.argv) < 2:
+        print("Kullanım: python app2.py <HuggingFace_Token> [image_size]")
+        sys.exit(1)
 
+    HUGGINGFACE_TOKEN = sys.argv[1]
+    IMAGE_SIZE = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2] in ["128", "256", "512"] else 128
+
+    try:
+        print("[DEBUG] Hugging Face hesabına giriş yapılıyor...")
+        login(token=HUGGINGFACE_TOKEN)
+        print("[DEBUG] Hugging Face giriş başarılı!")
+
+        devices = [f"cuda:{i}" for i in range(torch.cuda.device_count())]
+        if not devices:
+            raise RuntimeError("Kullanılabilir GPU bulunamadı.")
+        generator = StableDif(devices=devices, image_size=IMAGE_SIZE)
+        generator._load_model(HUGGINGFACE_TOKEN)
+
+        demo = create_gradio_interface(generator)
+        print("[DEBUG] Gradio arayüzü başlatılıyor...")
         demo.launch(server_name="0.0.0.0", server_port=7860)
+    except Exception as e:
+        print(f"[ERROR] Program başlatılamadı: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
-    app = StableDiffusionApp()
-    app.launch_app()
+    main()
