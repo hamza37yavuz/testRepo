@@ -3,10 +3,10 @@ from diffusers import DiffusionPipeline
 import torch
 from huggingface_hub import login
 import sys
-from googletrans import Translator  # Prompt çevirisi için
+from deep_translator import GoogleTranslator  # Prompt çevirisi için
 
 class StableDif: 
-    def __init__(self, model_id="stabilityai/stable-diffusion-3-large", devices=None, image_size=128):
+    def __init__(self, model_id="stabilityai/stable-diffusion-3.5-large", devices=None, image_size=128):
         """
         Stable Diffusion 3.5 Large modelini yükler ve ayarlar.
         
@@ -36,13 +36,6 @@ class StableDif:
             )
             
             # Çoklu GPU kullanımı (DataParallel)
-            if len(self.devices) > 1:
-                print(f"[DEBUG] {len(self.devices)} GPU kullanılıyor: {', '.join(self.devices)}")
-                self.pipe.enable_model_cpu_offload()  # Bellek optimizasyonu için
-            else:
-                print(f"[DEBUG] Tek GPU kullanılıyor: {self.devices[0]}")
-                self.pipe = self.pipe.to(self.devices[0])
-            
             self.pipe = torch.nn.DataParallel(self.pipe, device_ids=[torch.device(device) for device in self.devices])
             print("[DEBUG] Model başarıyla yüklendi!")
         except Exception as e:
@@ -70,8 +63,7 @@ class StableDif:
 
         try:
             if translate_prompt:
-                translator = Translator()
-                prompt = translator.translate(prompt, dest="en").text
+                prompt = GoogleTranslator(source='auto', target='en').translate(prompt)
                 print(f"[DEBUG] Çevrilen Prompt: {prompt}")
 
             print(f"[DEBUG] Görsel oluşturuluyor: {prompt}")
@@ -135,7 +127,7 @@ def create_gradio_interface(generator):
     except Exception as e:
         print(f"[ERROR] Gradio arayüzü oluşturulamadı: {e}")
         raise RuntimeError(f"Gradio arayüzü başlatılamadı: {e}")
-      
+
 def main():
     if len(sys.argv) < 2:
         print("Kullanım: python app2.py <HuggingFace_Token> [image_size]")
