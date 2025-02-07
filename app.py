@@ -95,34 +95,74 @@ def create_gradio_interface(generator):
     def generate_image_wrapper(prompt, translate_prompt):
         return generator.generate_image(prompt, translate_prompt)
 
+    # Özel CSS
     custom_css = """
     .gradio-container {
         background: linear-gradient(45deg, #ff9a9e, #fad0c4, #fbc2eb, #a18cd1, #fad0c4, #ffdde1);
     }
+    .gradio-container .panel {
+        background-color: #e0f7fa !important;  /* Açık mavi */
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .gradio-container .output-image, .gradio-container .input-text {
+        background-color: #e0f7fa !important;  /* Açık mavi */
+        border-radius: 10px;
+        padding: 20px;
+    }
+    .gradio-container .logo {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        width: 50px;
+        height: 50px;
+    }
+    h1, h2, h3 {
+            color: black !important;
+        }
+    
+    textarea {
+            background-color: #2b2b2b !important;
+            color: white !important;
+            border: 1px solid #555;
+        }    
+    
     """
 
     try:
         with gr.Blocks(css=custom_css) as demo:
+            # Logo ekleme
+            gr.HTML("""
+                <div class="logo">
+                    <img src="logo.ico" alt="Logo" width="50" height="50">
+                </div>
+            """)
+
+            # Başlık ve açıklama
             gr.Markdown("# 🎨 Stable Diffusion 3.5 Large ile Görsel Oluşturma 🎨")
             gr.Markdown("### Renkli ve eğlenceli görseller oluşturun!")
             
-            with gr.Row():
-                with gr.Column():
-                    prompt = gr.Textbox(
-                        label="Prompt (İstenen Görsel)",
-                        placeholder="Örneğin: Mutlu bir çocuk, renkli balonlarla",
-                        max_lines=3,
-                        info="Lütfen istediğiniz görseli tanımlayan bir metin girin."
-                    )
-                    translate_prompt = gr.Checkbox(
-                        label="Prompt'u İngilizceye Çevir",
-                        value=False,
-                        info="İşaretli değilse, prompt otomatik olarak İngilizceye çevrilir."
-                    )
+            # Görsel oluşturma alanı
+            with gr.Row(css=custom_css):
+                with gr.Column(css=custom_css):
+                    with gr.Group(css=custom_css):  # Prompt kutusu ve checkbox'ı grupla
+                        prompt = gr.Textbox(
+                            label="Prompt (İstenen Görsel)",
+                            placeholder="Örneğin: Mutlu bir çocuk, renkli balonlarla",
+                            max_lines=3,
+                            info="Lütfen istediğiniz görseli tanımlayan bir metin girin."
+                        )
+                        translate_prompt = gr.Checkbox(
+                            label="Prompt'u İngilizceye Çevir",
+                            value=False,
+                            info="İşaretli değilse, prompt otomatik olarak İngilizceye çevrilir."
+                        )
                     generate_button = gr.Button("Görsel Oluştur", variant="primary")
-                with gr.Column():
+                with gr.Column(css=custom_css):
                     output_image = gr.Image(label="Oluşturulan Görsel", interactive=False)
 
+            # Buton işlevi
             generate_button.click(
                 generate_image_wrapper,
                 inputs=[prompt, translate_prompt],
