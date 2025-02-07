@@ -35,8 +35,13 @@ class StableDif:
                 use_auth_token=token  # Token'ı kullanarak modeli yükle
             )
             
-            # Çoklu GPU kullanımı (DataParallel)
-            self.pipe = torch.nn.DataParallel(self.pipe, device_ids=[torch.device(device) for device in self.devices])
+            # Çoklu GPU kullanımı
+            if torch.cuda.device_count() > 1:
+                print(f"[DEBUG] {torch.cuda.device_count()} GPU tespit edildi. Bellek optimizasyonu yapılıyor...")
+                self.pipe.enable_sequential_cpu_offload()
+            else:
+                print(f"[DEBUG] Tek GPU kullanılıyor: {self.devices[0]}")
+                self.pipe.to(self.devices[0])
             print("[DEBUG] Model başarıyla yüklendi!")
         except Exception as e:
             print(f"[ERROR] Model yükleme başarısız oldu: {e}")
